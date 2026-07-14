@@ -197,21 +197,6 @@ tr:hover{background:#FAFBFE}
 </head>
 </head>
 <body>
-<div id="fbBanner" style="position:fixed;top:0;left:0;right:0;z-index:9999;padding:10px 20px;font-size:13px;font-weight:600;text-align:center;background:#FEF3C7;color:#92400E">⏳ Testing Firebase connection...</div>
-<script>
-(async function(){
-  var b=document.getElementById('fbBanner');
-  var url='https://cmca-portal-default-rtdb.firebaseio.com';
-  try{
-    var w=await fetch(url+'/ping.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:'{"t":'+Date.now()+'}'});
-    if(!w.ok){b.style.background='#FEE2E2';b.style.color='#991B1B';b.textContent='WRITE FAILED: '+w.status+' - Check Firebase Rules';return}
-    var r=await fetch(url+'/ping.json');
-    var d=await r.json();
-    if(d&&d.t){b.style.background='#D1FAE5';b.style.color='#065F46';b.textContent='\u2705 Firebase Connected & Syncing! (v'+d.t+')';setTimeout(function(){b.style.display='none'},5000)}
-    else{b.style.background='#FEE2E2';b.style.color='#991B1B';b.textContent='READ BACK FAILED'}
-  }catch(e){b.style.background='#FEE2E2';b.style.color='#991B1B';b.textContent='CONNECTION ERROR: '+e.message+' | URL: '+url}
-})();
-</script>
 
 <!-- LOGIN SCREEN -->
 <div class="login-wrap" id="loginScreen">
@@ -236,9 +221,7 @@ tr:hover{background:#FAFBFE}
 <div><b>Partner:</b> madhulena / partner2024</div>
 <div><b>Employee:</b> apoorva / team2024</div>
 </div>
-<div style="margin-top:12px;padding-top:10px;border-top:1px solid #E5E7EB">
-<div id="fbTest" style="font-size:10px;text-align:center;padding:6px;border-radius:6px;background:#FEF3C7;color:#92400E">⏳ Testing Firebase connection...</div>
-</div>
+
 </div>
 </div>
 </div>
@@ -271,22 +254,31 @@ var SEED_DATA={"tasks":[{"taskId":"NRT0514","clientName":"Four Way Realty LLP","
 const FB='https://cmca-portal-default-rtdb.firebaseio.com';
 let _sv=0,_sy=false;
 async function fbGet(){try{var r=await fetch(FB+'/cmca.json');if(!r.ok)return null;var d=await r.json();if(d&&d.tasks){d.tasks=Object.values(d.tasks);['logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){if(d[k]){d[k]=Object.values(d[k])}else{d[k]=[]}});return d}return d}catch(e){return null}}
-async function fbPut(data){
+async function fbPut(data,changedKey){
   _sv=Date.now();
-  var collections=['tasks','logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'];
   try{
-    await fetch(FB+'/cmca/_v.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(_sv)});
-    for(var i=0;i<collections.length;i++){
-      var k=collections[i];
-      var arr=data[k]||[];
-      if(arr.length>0){
-        await fetch(FB+'/cmca/'+k+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(arr)});
+    if(changedKey){
+      // Only write the specific collection that changed + version
+      var patch={};
+      patch[changedKey]=data[changedKey]||[];
+      patch._v=_sv;
+      await fetch(FB+'/cmca.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+    }else{
+      // Full seed write - write each collection separately
+      await fetch(FB+'/cmca/_v.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(_sv)});
+      var cols=['tasks','logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'];
+      for(var i=0;i<cols.length;i++){
+        var k=cols[i];
+        var arr=data[k]||[];
+        if(arr.length>0){
+          await fetch(FB+'/cmca/'+k+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(arr)});
+        }
       }
     }
   }catch(e){console.log('Write error:',e)}
 }
 async function fbSync(){if(_sy)return;_sy=true;try{var r=await fbGet();var si=document.getElementById('syncStatus');var info=document.getElementById('syncInfo');if(r){if(r._v&&r._v>_sv){_sv=r._v;delete r._v;['tasks','logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){if(r[k])DB[k]=r[k]});['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});if(typeof renderPage==='function'&&document.getElementById('app').style.display!=='none'){renderPage();buildSidebar()}if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Synced'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)+' T:'+((DB.tasks||[]).length)}}else{if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)}}}else{if(si){si.style.background='#FEF3C7';si.style.color='#92400E';si.textContent='\u25cf No data'}}}catch(e){var si=document.getElementById('syncStatus');if(si){si.style.background='#FEE2E2';si.style.color='#991B1B';si.textContent='\u25cf Error: '+e.message}}_sy=false}
-function manualSync(){_sv=0;_sy=false;fbSync().then(function(){alert('Sync complete! Partner Priorities: '+(DB.partnerPriorities||[]).length+'\nTasks: '+(DB.tasks||[]).length)})}
+function manualSync(){_sv=0;_sy=false;fbSync().then(function(){var pp=(DB.partnerPriorities||[]).length;var t=(DB.tasks||[]).length;alert('Synced! Tasks: '+t+', Priorities: '+pp+', Logs: '+(DB.logs||[]).length)})}
 
 // ===== DATA =====
 const USERS=[
@@ -311,7 +303,7 @@ const USERS=[
 const STATUSES=['Not Started','Work in Progress','Client Side Pending','Follow Up Required','Completed','On Hold','Cancelled'];
 const BILLING_TYPES=['Billable','Non-Billable','Client Request','AI'];
 let CU=null,DB={tasks:[],logs:[],notifications:[],reimburse:[],routine:[],upfront:[],attendance:[],partnerPriorities:[],dailyPicks:[],notes:[],reviews:[],messages:[],reimbRequests:[],routineRequests:[],upfrontReceipts:[],upfrontRequests:[]};
-function saveDB(){fbPut(DB).catch(function(){})}
+function saveDB(changedKey){fbPut(DB,changedKey).catch(function(){})}
 async function loadDB(){try{var r=await fbGet();if(r&&r.tasks){delete r._v;['tasks','logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){if(r[k])DB[k]=r[k]});['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});return true}return false}catch(e){return false}}
 
 function seedDB(){
@@ -438,7 +430,7 @@ function renderEmpDash(){
     <div class="sg"><div class="sc"><div class="lb">My Tasks</div><div class="vl">${total}</div><div class="sb">${comp} completed</div></div><div class="sc gold"><div class="lb">In Progress</div><div class="vl">${wip}</div></div><div class="sc err"><div class="lb">Overdue</div><div class="vl">${overdue}</div></div><div class="sc info"><div class="lb">Reviews Pending</div><div class="vl">${pendingReviews}</div></div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-gold" onclick="goTo('dailywork')">📋 Daily Prioritisation</button><button class="btn btn-outline" onclick="goTo('mytasks')">📂 All Tasks</button><button class="btn btn-outline" onclick="goTo('notifications')">🔔 Notifications${unread>0?' ('+unread+')':''}</button><button class="btn btn-outline" onclick="goTo('notes')">📝 Notes</button><button class="btn btn-outline" onclick="goTo('messenger')">💬 Messenger</button></div>`;
 }
-window.doCheckIn=function(){const t=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});DB.attendance.push({employee:CU.id,date:today(),checkIn:t,checkOut:null,hoursWorked:null});saveDB();goTo('dashboard')};
+window.doCheckIn=function(){const t=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});DB.attendance.push({employee:CU.id,date:today(),checkIn:t,checkOut:null,hoursWorked:null});saveDB('attendance');goTo('dashboard')};
 window.doCheckOut=function(){const att=getTodayAttendance(CU.id);if(!att)return;const t=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});att.checkOut=t;const parseT=s=>{const[h,m]=(s||'').split(':').map(Number);return h*60+(m||0)};const d=parseT(t)-parseT(att.checkIn);const h=Math.floor(Math.abs(d)/60),mn=Math.abs(d)%60;att.hoursWorked=h+'h '+mn+'m';saveDB();showModal(`<h3 style="text-align:center">Work Duration</h3><div style="text-align:center;padding:20px"><div style="font-size:36px;font-weight:700;color:var(--navy)">${h}h ${mn}m</div><div style="font-size:12px;color:var(--muted);margin-top:6px">${att.checkIn} → ${att.checkOut}</div></div><div class="modal-actions" style="justify-content:center"><button class="btn btn-gold" onclick="hideModal();goTo('dashboard')">Done</button></div>`)};
 function renderMyTasks(){
   const my=DB.tasks.filter(t=>(t.assignedTo||[]).includes(CU.id));
@@ -475,10 +467,10 @@ function renderDailyWork(){
   +`<div style="margin-top:14px;display:flex;gap:8px"><button class="btn btn-gold" onclick="submitDaily()">✅ Submit</button><button class="btn btn-outline btn-sm" onclick="showCreateTaskModal()">+ New Task</button></div><div id="submitMsg" style="display:none;margin-top:8px;padding:8px;border-radius:6px;font-size:12px"></div></div>`
   +(todayLogs.length>0?`<div class="tc"><div class="th"><h3>Today's Submissions (${todayLogs.length})</h3></div><div class="ts"><table><thead><tr><th>Task ID</th><th>Client</th><th>Sub-Task</th><th>Sub Status</th><th>Overall</th><th>Type</th><th>Remarks</th></tr></thead><tbody>${todayLogs.map(l=>{const t=DB.tasks.find(x=>x.taskId===l.taskId);return`<tr><td style="font-family:monospace;font-size:10px">${l.taskId}</td><td style="font-size:10px">${l.clientName||''}</td><td style="font-weight:500">${l.subtask||'—'}</td><td>${statusBd(l.subtaskStatus)}</td><td>${statusBd(l.taskStatus)}</td><td>${billingBd(t?t.billingType:'')}</td><td style="font-size:10px">${l.remarks||'—'}</td></tr>`}).join('')}</tbody></table></div></div>`:'');
 }
-window.addPick=function(tid){if(DB.dailyPicks.find(p=>p.employee===CU.id&&p.date===today()&&p.taskId===tid))return;DB.dailyPicks.push({employee:CU.id,date:today(),taskId:tid});saveDB();goTo('dailywork')};
+window.addPick=function(tid){if(DB.dailyPicks.find(p=>p.employee===CU.id&&p.date===today()&&p.taskId===tid))return;DB.dailyPicks.push({employee:CU.id,date:today(),taskId:tid});saveDB('dailyPicks');goTo('dailywork')};
 window.addSub=function(tid){if(!window._ps[tid])window._ps[tid]=[];window._ps[tid].push({name:'',ss:'Work in Progress',remarks:''});goTo('dailywork')};
 window.upPS=function(tid,si,f,v){if(window._ps[tid]&&window._ps[tid][si])window._ps[tid][si][f]=v};
-window.submitDaily=function(){const pts=getDailyPicks(CU.id,today()).map(p=>DB.tasks.find(t=>t.taskId===p.taskId)).filter(Boolean);let c=0;pts.forEach((t,i)=>{const ots=document.getElementById('ots-'+i);const os=ots?ots.value:getTaskCurrentStatus(t);t.currentStatus=os;const subs=window._ps[t.taskId]||[];if(subs.length>0){subs.forEach(s=>{if(!s.name&&!s.remarks)return;DB.logs.push({taskId:t.taskId,employee:CU.id,date:today(),clientName:t.clientName,taskName:t.taskName,subtask:s.name||'',counts:'1',subtaskStatus:s.ss||'Work in Progress',taskStatus:os,billingType:t.billingType||'Billable',remarks:s.remarks||''});c++})}else{DB.logs.push({taskId:t.taskId,employee:CU.id,date:today(),clientName:t.clientName,taskName:t.taskName,subtask:'',counts:'1',subtaskStatus:os,taskStatus:os,billingType:t.billingType||'Billable',remarks:''});c++}});if(c>0){window._ps={};saveDB();document.getElementById('submitMsg').style.display='block';document.getElementById('submitMsg').style.background='#D1FAE5';document.getElementById('submitMsg').style.color='#065F46';document.getElementById('submitMsg').textContent='✅ '+c+' entries submitted.';setTimeout(()=>goTo('dailywork'),1000)}};
+window.submitDaily=function(){const pts=getDailyPicks(CU.id,today()).map(p=>DB.tasks.find(t=>t.taskId===p.taskId)).filter(Boolean);let c=0;pts.forEach((t,i)=>{const ots=document.getElementById('ots-'+i);const os=ots?ots.value:getTaskCurrentStatus(t);t.currentStatus=os;const subs=window._ps[t.taskId]||[];if(subs.length>0){subs.forEach(s=>{if(!s.name&&!s.remarks)return;DB.logs.push({taskId:t.taskId,employee:CU.id,date:today(),clientName:t.clientName,taskName:t.taskName,subtask:s.name||'',counts:'1',subtaskStatus:s.ss||'Work in Progress',taskStatus:os,billingType:t.billingType||'Billable',remarks:s.remarks||''});c++})}else{DB.logs.push({taskId:t.taskId,employee:CU.id,date:today(),clientName:t.clientName,taskName:t.taskName,subtask:'',counts:'1',subtaskStatus:os,taskStatus:os,billingType:t.billingType||'Billable',remarks:''});c++}});if(c>0){window._ps={};saveDB('logs');saveDB('tasks');document.getElementById('submitMsg').style.display='block';document.getElementById('submitMsg').style.background='#D1FAE5';document.getElementById('submitMsg').style.color='#065F46';document.getElementById('submitMsg').textContent='✅ '+c+' entries submitted.';setTimeout(()=>goTo('dailywork'),1000)}};
 window.filterT=function(id,v){const vl=v.toLowerCase();document.querySelectorAll('#'+id+' tbody tr').forEach(tr=>{tr.style.display=(tr.dataset.search||'').includes(vl)?'':'none'})};
 function renderNotifications(){const ns=DB.notifications.filter(n=>n.forEmployee===CU.id).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));return backBar()+`<div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="font-size:12px;color:var(--muted)">${ns.filter(n=>!n.read).length} unread</span><button class="btn btn-outline btn-sm" onclick="DB.notifications.filter(n=>n.forEmployee===CU.id).forEach(n=>n.read=true);saveDB();buildSidebar();goTo('notifications')">Mark All Read</button></div><div class="notif-list">${ns.length>0?ns.map(n=>`<div class="notif-item ${n.read?'':'unread'}"><div class="notif-icon ${n.type==='urgent'?'urgent':'task'}">${n.type==='urgent'?'⚠':'📋'}</div><div class="notif-body"><div class="msg">${n.message}</div><div class="time">${n.createdAt?new Date(n.createdAt).toLocaleString('en-IN'):''}</div></div></div>`).join(''):'<div class="empty-state">No notifications</div>'}</div>`}
 
@@ -554,7 +546,7 @@ function renderPrioritiseFor(){const emps=USERS.filter(u=>u.role==='employee');c
   return backBar()+`<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:end"><div class="fg" style="margin:0"><label>Employee</label><select class="fs" style="width:180px" onchange="window._pfE=this.value;goTo('prioritisefor')"><option value="">— Select —</option>${emps.map(e=>`<option value="${e.id}" ${se===e.id?'selected':''}>${e.name}</option>`).join('')}</select></div><div class="fg" style="margin:0"><label>Date</label><input type="date" value="${sd}" onchange="window._pfD=this.value;goTo('prioritisefor')" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:12px"></div></div>
   ${se?`${ep.length>0?`<div class="tc" style="border-color:var(--gold);margin-bottom:12px"><div class="th"><h3 style="color:var(--gold)">Prioritised for ${sd} (${ep.length})</h3></div><div class="ts"><table><thead><tr><th>ID</th><th>Client</th><th>Task</th><th>Remarks</th></tr></thead><tbody>${ep.map(p=>{const t=DB.tasks.find(x=>x.taskId===p.taskId);return t?`<tr><td style="font-family:monospace;font-size:10px">${t.taskId}</td><td>${t.clientName}</td><td>${t.taskName}</td><td style="font-size:10px">${p.remarks||'—'}</td></tr>`:''}).join('')}</tbody></table></div></div>`:''}
   <div class="tc"><div class="th"><h3>Active Tasks for ${getUserName(se)} (${at.length})</h3><input class="fi" placeholder="Search..." oninput="filterT('pfT',this.value)"></div><div class="ts"><table id="pfT"><thead><tr><th>ID</th><th>Client</th><th>Task</th><th>Type</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${at.map(t=>`<tr data-search="${(t.taskId+' '+t.clientName+' '+t.taskName).toLowerCase()}"><td style="font-family:monospace;font-size:10px">${t.taskId}</td><td style="font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.clientName}</td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.taskName}</td><td>${billingBd(t.billingType)}</td><td><span class="bd tc-due ${dueClass(t.dueDate)}">${t.dueDate||'—'}</span></td><td>${statusBd(getTaskCurrentStatus(t))}</td><td>${epi.has(t.taskId)?'<span class="bd bd-comp">Done</span>':`<button class="btn btn-gold btn-sm" onclick="priFor('${t.taskId}')">Prioritise</button>`}</td></tr>`).join('')}</tbody></table></div></div>`:'<div class="empty-state">Select an employee above</div>'}`}
-window.priFor=function(tid){const rem=prompt('Remarks (optional):','');DB.partnerPriorities.push({taskId:tid,employee:window._pfE,date:window._pfD||today(),prioritisedBy:CU.id,remarks:rem||'',createdAt:new Date().toISOString()});DB.notifications.push({id:Date.now()+Math.random(),type:'urgent',forEmployee:window._pfE,message:`${CU.name} prioritised task ${tid} for ${window._pfD||today()}.${rem?' Note: '+rem:''}`,taskId:tid,createdAt:new Date().toISOString(),read:false});saveDB();goTo('prioritisefor')};
+window.priFor=function(tid){const rem=prompt('Remarks (optional):','');DB.partnerPriorities.push({taskId:tid,employee:window._pfE,date:window._pfD||today(),prioritisedBy:CU.id,remarks:rem||'',createdAt:new Date().toISOString()});DB.notifications.push({id:Date.now()+Math.random(),type:'urgent',forEmployee:window._pfE,message:`${CU.name} prioritised task ${tid} for ${window._pfD||today()}.${rem?' Note: '+rem:''}`,taskId:tid,createdAt:new Date().toISOString(),read:false});saveDB('partnerPriorities');saveDB('notifications');goTo('prioritisefor')};
 // Reallocate
 function renderReallocate(){const emps=USERS.filter(u=>u.role==='employee');const sf=window._raF||'';const ft=sf?DB.tasks.filter(t=>(t.assignedTo||[]).includes(sf)&&getTaskCurrentStatus(t)!=='Completed'&&getTaskCurrentStatus(t)!=='Cancelled'):[];
   return backBar()+`<div style="margin-bottom:14px"><div class="fg" style="margin:0;display:inline-block"><label>From Employee</label><select class="fs" style="width:200px" onchange="window._raF=this.value;goTo('reallocate')"><option value="">— Select —</option>${emps.map(e=>`<option value="${e.id}" ${sf===e.id?'selected':''}>${e.name}</option>`).join('')}</select></div></div>
@@ -609,7 +601,7 @@ function renderMessenger(){const emps=USERS.filter(u=>u.id!==CU.id);const all=DB
     return`<div class="msg-bubble ${isMine?'sent':'received'}"><div style="font-weight:600;font-size:10px;margin-bottom:2px">${getUserName(m.from)} → ${targets}</div><div>${m.content}</div><div class="meta">${new Date(m.createdAt).toLocaleString('en-IN')}</div>${isMine&&isP?`<div class="ack-list">Ack: ${acked.length}/${ackList.length} — ${acked.map(u=>u.name).join(', ')||'None yet'}</div>`:''}${!isMine&&(m.to==='all'||(m.to||[]).includes(CU.id))?`<div style="margin-top:4px">${myAcked?'<button class="ack-btn done">✓ Acknowledged</button>':`<button class="ack-btn" onclick="ackMsg(${all.indexOf(m)})">Acknowledge</button>`}</div>`:''}</div>`}).join(''):'<div class="empty-state">No messages</div>'}</div>
   <div style="margin-top:10px"><select id="msgTo" class="fs" style="width:100%;margin-bottom:6px"><option value="all">Everyone</option>${emps.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div style="display:flex;gap:6px"><input type="text" id="msgText" placeholder="Type message..." style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px"><button class="btn btn-gold" onclick="sendMsg()">Send</button></div></div></div>
   <div class="cc"><h4>Quick Actions</h4><div style="display:flex;flex-direction:column;gap:6px"><button class="btn btn-outline btn-sm" onclick="document.getElementById('msgTo').value='all';document.getElementById('msgText').focus()">Message All</button>${isP?`<div style="font-size:10px;color:var(--muted);margin-top:8px">Acknowledgment status visible above for your sent messages.</div>`:''}</div></div></div>`}
-window.sendMsg=function(){const sel=document.getElementById('msgTo');const txt=document.getElementById('msgText').value.trim();if(!txt)return;const to=sel.value==='all'?'all':[sel.value];DB.messages.push({from:CU.id,to,content:txt,createdAt:new Date().toISOString(),acknowledged:{}});const targets=to==='all'?USERS.filter(u=>u.id!==CU.id).map(u=>u.id):to;targets.forEach(e=>{DB.notifications.push({id:Date.now()+Math.random(),type:'task',forEmployee:e,message:`Message from ${CU.name}: "${txt.substring(0,50)}..."`,createdAt:new Date().toISOString(),read:false})});saveDB();goTo('messenger')};
+window.sendMsg=function(){const sel=document.getElementById('msgTo');const txt=document.getElementById('msgText').value.trim();if(!txt)return;const to=sel.value==='all'?'all':[sel.value];DB.messages.push({from:CU.id,to:to,content:txt,createdAt:new Date().toISOString(),acknowledged:{}});const targets=to==='all'?USERS.filter(u=>u.id!==CU.id).map(u=>u.id):to;targets.forEach(e=>{DB.notifications.push({id:Date.now()+Math.random(),type:'task',forEmployee:e,message:`Message from ${CU.name}: "${txt.substring(0,50)}..."`,createdAt:new Date().toISOString(),read:false})});saveDB();goTo('messenger')};
 window.ackMsg=function(idx){const all=DB.messages.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));if(all[idx]){if(!all[idx].acknowledged)all[idx].acknowledged={};all[idx].acknowledged[CU.id]=new Date().toISOString();saveDB();goTo('messenger')}};
 
 // ===== FINANCE WORKFLOWS =====
@@ -784,7 +776,7 @@ window.expRoutine=function(){dlCsv(DB.routine.length?DB.routine:DB.routineReques
   
   // Step 3: Enable login and sync
   checkSession();
-  setInterval(function(){try{fbSync().catch(function(){})}catch(e){}},5000);
+  setInterval(function(){try{fbSync().catch(function(){})}catch(e){}},8000);
 })();
 
 </script>
