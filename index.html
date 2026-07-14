@@ -221,6 +221,9 @@ tr:hover{background:#FAFBFE}
 <div><b>Partner:</b> madhulena / partner2024</div>
 <div><b>Employee:</b> apoorva / team2024</div>
 </div>
+<div style="margin-top:12px;padding-top:10px;border-top:1px solid #E5E7EB">
+<div id="fbTest" style="font-size:10px;text-align:center;padding:6px;border-radius:6px;background:#FEF3C7;color:#92400E">⏳ Testing Firebase connection...</div>
+</div>
 </div>
 </div>
 </div>
@@ -698,15 +701,39 @@ window.expRoutine=function(){dlCsv(DB.routine.length?DB.routine:DB.routineReques
 
 
 (async function(){
-try{await initDB();
-  // Test Firebase connection
-  try{var t=await fbGet();
-    if(t){console.log('Firebase connected, data found');var si=document.getElementById('syncStatus');if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}}
-    else{console.log('Firebase connected, seeding data');await fbPut(DB);var si=document.getElementById('syncStatus');if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}}
-  }catch(fe){console.log('Firebase error:',fe);var si=document.getElementById('syncStatus');if(si){si.style.background='#FEE2E2';si.style.color='#991B1B';si.textContent='\u25cf Offline'}}
-}catch(e){console.log(e);seedDB()}
-checkSession();
-setInterval(function(){try{fbSync().catch(function(){})}catch(e){}},5000);
+  // Step 1: Load seed data immediately
+  try{seedDB()}catch(e){console.log('Seed error:',e)}
+  
+  // Step 2: Test Firebase connection and show result
+  var fbTestEl=document.getElementById('fbTest');
+  try{
+    var testRes=await fetch(FB+'/.json');
+    if(testRes.ok){
+      var testData=await testRes.json();
+      // Firebase is reachable!
+      if(fbTestEl){fbTestEl.style.background='#D1FAE5';fbTestEl.style.color='#065F46';fbTestEl.innerHTML='\u2705 Firebase Connected! Data syncs across all users.'}
+      // Load data from Firebase if exists
+      try{
+        var fbData=await fbGet();
+        if(fbData&&fbData.tasks&&fbData.tasks.length>0){
+          delete fbData._v;
+          Object.assign(DB,fbData);
+          ['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});
+        }else{
+          // First time - push seed data to Firebase
+          await fbPut(DB);
+        }
+      }catch(e2){console.log('Data load error:',e2)}
+    }else{
+      if(fbTestEl){fbTestEl.style.background='#FEE2E2';fbTestEl.style.color='#991B1B';fbTestEl.innerHTML='\u274c Firebase returned error: '+testRes.status+'. Check database URL and rules.'}
+    }
+  }catch(e){
+    if(fbTestEl){fbTestEl.style.background='#FEE2E2';fbTestEl.style.color='#991B1B';fbTestEl.innerHTML='\u274c Cannot reach Firebase: '+e.message+'<br>URL: '+FB}
+  }
+  
+  // Step 3: Enable login and sync
+  checkSession();
+  setInterval(function(){try{fbSync().catch(function(){})}catch(e){}},5000);
 })();
 
 </script>
