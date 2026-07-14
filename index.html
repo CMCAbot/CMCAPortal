@@ -239,7 +239,7 @@ tr:hover{background:#FAFBFE}
 <button class="hamburger" onclick="toggleSB()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg></button>
 <h2 id="pageTitle">Dashboard</h2>
 </div>
-<div class="topbar-r"><span id="syncStatus" style="font-size:10px;padding:3px 10px;border-radius:12px;font-weight:600;background:#FEF3C7;color:#92400E">● Connecting...</span><span id="dateDisp"></span></div>
+<div class="topbar-r"><button onclick="manualSync()" style="padding:3px 10px;border:1px solid #E5E7EB;border-radius:6px;font-size:10px;cursor:pointer;background:white">🔄 Sync Now</button><span id="syncStatus" style="font-size:10px;padding:3px 10px;border-radius:12px;font-weight:600;background:#FEF3C7;color:#92400E">● Connecting...</span><span id="syncInfo" style="font-size:9px;color:#6B7280"></span><span id="dateDisp"></span></div>
 </div>
 <div class="content" id="content"></div>
 </div>
@@ -257,7 +257,8 @@ const FB='https://cmca-portal-default-rtdb.firebaseio.com';
 let _sv=0,_sy=false;
 async function fbGet(){try{const r=await fetch(FB+'/cmca.json');if(!r.ok)return null;return await r.json()}catch(e){return null}}
 async function fbPut(data){data._v=(_sv=Date.now());try{await fetch(FB+'/cmca.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})}catch(e){}}
-async function fbSync(){if(_sy)return;_sy=true;try{const r=await fbGet();if(r&&r._v&&r._v>_sv){_sv=r._v;delete r._v;Object.assign(DB,r);['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});if(typeof renderPage==='function'&&document.getElementById('app').style.display!=='none'){renderPage();buildSidebar()}}var si=document.getElementById('syncStatus');if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}}catch(e){var si=document.getElementById('syncStatus');if(si){si.style.background='#FEE2E2';si.style.color='#991B1B';si.textContent='\u25cf Offline'}}_sy=false}
+async function fbSync(){if(_sy)return;_sy=true;try{var r=await fbGet();var si=document.getElementById('syncStatus');var info=document.getElementById('syncInfo');if(r){if(r._v&&r._v>_sv){_sv=r._v;delete r._v;Object.assign(DB,r);['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});if(typeof renderPage==='function'&&document.getElementById('app').style.display!=='none'){renderPage();buildSidebar()}if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Synced'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)+' T:'+((DB.tasks||[]).length)}}else{if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)}}}else{if(si){si.style.background='#FEF3C7';si.style.color='#92400E';si.textContent='\u25cf No data'}}}catch(e){var si=document.getElementById('syncStatus');if(si){si.style.background='#FEE2E2';si.style.color='#991B1B';si.textContent='\u25cf Error: '+e.message}}_sy=false}
+function manualSync(){_sv=0;_sy=false;fbSync().then(function(){alert('Sync complete! Partner Priorities: '+(DB.partnerPriorities||[]).length+'\nTasks: '+(DB.tasks||[]).length)})}
 
 // ===== DATA =====
 const USERS=[
