@@ -236,7 +236,7 @@ tr:hover{background:#FAFBFE}
 <button class="hamburger" onclick="toggleSB()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg></button>
 <h2 id="pageTitle">Dashboard</h2>
 </div>
-<div class="topbar-r"><span id="dateDisp"></span></div>
+<div class="topbar-r"><span id="syncStatus" style="font-size:10px;padding:3px 10px;border-radius:12px;font-weight:600;background:#FEF3C7;color:#92400E">● Connecting...</span><span id="dateDisp"></span></div>
 </div>
 <div class="content" id="content"></div>
 </div>
@@ -698,7 +698,13 @@ window.expRoutine=function(){dlCsv(DB.routine.length?DB.routine:DB.routineReques
 
 
 (async function(){
-try{await initDB()}catch(e){console.log(e);seedDB()}
+try{await initDB();
+  // Test Firebase connection
+  try{var t=await fbGet();
+    if(t){console.log('Firebase connected, data found');var si=document.getElementById('syncStatus');if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}}
+    else{console.log('Firebase connected, seeding data');await fbPut(DB);var si=document.getElementById('syncStatus');if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}}
+  }catch(fe){console.log('Firebase error:',fe);var si=document.getElementById('syncStatus');if(si){si.style.background='#FEE2E2';si.style.color='#991B1B';si.textContent='\u25cf Offline'}}
+}catch(e){console.log(e);seedDB()}
 checkSession();
 setInterval(function(){try{fbSync().catch(function(){})}catch(e){}},5000);
 })();
