@@ -270,26 +270,20 @@ var SEED_DATA={"tasks":[{"taskId":"NRT0514","clientName":"Four Way Realty LLP","
 
 const FB='https://cmca-portal-default-rtdb.firebaseio.com';
 let _sv=0,_sy=false;
-async function fbGet(){try{const r=await fetch(FB+'/cmca.json');if(!r.ok)return null;return await r.json()}catch(e){return null}}
+async function fbGet(){try{var r=await fetch(FB+'/cmca.json');if(!r.ok)return null;var d=await r.json();if(d&&d.tasks){d.tasks=Object.values(d.tasks);['logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){if(d[k]){d[k]=Object.values(d[k])}else{d[k]=[]}});return d}return d}catch(e){return null}}
 async function fbPut(data){
-  var syncData={
-    _v:Date.now(),
-    tasks:data.tasks||[],
-    logs:data.logs||[],
-    notifications:data.notifications||[],
-    attendance:data.attendance||[],
-    partnerPriorities:data.partnerPriorities||[],
-    dailyPicks:data.dailyPicks||[],
-    notes:data.notes||[],
-    reviews:data.reviews||[],
-    messages:data.messages||[],
-    reimbRequests:data.reimbRequests||[],
-    routineRequests:data.routineRequests||[],
-    upfrontReceipts:data.upfrontReceipts||[],
-    upfrontRequests:data.upfrontRequests||[]
-  };
-  _sv=syncData._v;
-  try{await fetch(FB+'/cmca.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(syncData)})}catch(e){console.log('Write error:',e)}
+  _sv=Date.now();
+  var collections=['tasks','logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'];
+  try{
+    await fetch(FB+'/cmca/_v.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(_sv)});
+    for(var i=0;i<collections.length;i++){
+      var k=collections[i];
+      var arr=data[k]||[];
+      if(arr.length>0){
+        await fetch(FB+'/cmca/'+k+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(arr)});
+      }
+    }
+  }catch(e){console.log('Write error:',e)}
 }
 async function fbSync(){if(_sy)return;_sy=true;try{var r=await fbGet();var si=document.getElementById('syncStatus');var info=document.getElementById('syncInfo');if(r){if(r._v&&r._v>_sv){_sv=r._v;delete r._v;['tasks','logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){if(r[k])DB[k]=r[k]});['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});if(typeof renderPage==='function'&&document.getElementById('app').style.display!=='none'){renderPage();buildSidebar()}if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Synced'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)+' T:'+((DB.tasks||[]).length)}}else{if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)}}}else{if(si){si.style.background='#FEF3C7';si.style.color='#92400E';si.textContent='\u25cf No data'}}}catch(e){var si=document.getElementById('syncStatus');if(si){si.style.background='#FEE2E2';si.style.color='#991B1B';si.textContent='\u25cf Error: '+e.message}}_sy=false}
 function manualSync(){_sv=0;_sy=false;fbSync().then(function(){alert('Sync complete! Partner Priorities: '+(DB.partnerPriorities||[]).length+'\nTasks: '+(DB.tasks||[]).length)})}
