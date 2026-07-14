@@ -271,8 +271,27 @@ var SEED_DATA={"tasks":[{"taskId":"NRT0514","clientName":"Four Way Realty LLP","
 const FB='https://cmca-portal-default-rtdb.firebaseio.com';
 let _sv=0,_sy=false;
 async function fbGet(){try{const r=await fetch(FB+'/cmca.json');if(!r.ok)return null;return await r.json()}catch(e){return null}}
-async function fbPut(data){data._v=(_sv=Date.now());try{await fetch(FB+'/cmca.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})}catch(e){}}
-async function fbSync(){if(_sy)return;_sy=true;try{var r=await fbGet();var si=document.getElementById('syncStatus');var info=document.getElementById('syncInfo');if(r){if(r._v&&r._v>_sv){_sv=r._v;delete r._v;Object.assign(DB,r);['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});if(typeof renderPage==='function'&&document.getElementById('app').style.display!=='none'){renderPage();buildSidebar()}if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Synced'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)+' T:'+((DB.tasks||[]).length)}}else{if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)}}}else{if(si){si.style.background='#FEF3C7';si.style.color='#92400E';si.textContent='\u25cf No data'}}}catch(e){var si=document.getElementById('syncStatus');if(si){si.style.background='#FEE2E2';si.style.color='#991B1B';si.textContent='\u25cf Error: '+e.message}}_sy=false}
+async function fbPut(data){
+  var syncData={
+    _v:Date.now(),
+    tasks:data.tasks||[],
+    logs:data.logs||[],
+    notifications:data.notifications||[],
+    attendance:data.attendance||[],
+    partnerPriorities:data.partnerPriorities||[],
+    dailyPicks:data.dailyPicks||[],
+    notes:data.notes||[],
+    reviews:data.reviews||[],
+    messages:data.messages||[],
+    reimbRequests:data.reimbRequests||[],
+    routineRequests:data.routineRequests||[],
+    upfrontReceipts:data.upfrontReceipts||[],
+    upfrontRequests:data.upfrontRequests||[]
+  };
+  _sv=syncData._v;
+  try{await fetch(FB+'/cmca.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(syncData)})}catch(e){console.log('Write error:',e)}
+}
+async function fbSync(){if(_sy)return;_sy=true;try{var r=await fbGet();var si=document.getElementById('syncStatus');var info=document.getElementById('syncInfo');if(r){if(r._v&&r._v>_sv){_sv=r._v;delete r._v;['tasks','logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){if(r[k])DB[k]=r[k]});['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});if(typeof renderPage==='function'&&document.getElementById('app').style.display!=='none'){renderPage();buildSidebar()}if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Synced'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)+' T:'+((DB.tasks||[]).length)}}else{if(si){si.style.background='#D1FAE5';si.style.color='#065F46';si.textContent='\u25cf Live'}if(info){info.textContent=' PP:'+((DB.partnerPriorities||[]).length)}}}else{if(si){si.style.background='#FEF3C7';si.style.color='#92400E';si.textContent='\u25cf No data'}}}catch(e){var si=document.getElementById('syncStatus');if(si){si.style.background='#FEE2E2';si.style.color='#991B1B';si.textContent='\u25cf Error: '+e.message}}_sy=false}
 function manualSync(){_sv=0;_sy=false;fbSync().then(function(){alert('Sync complete! Partner Priorities: '+(DB.partnerPriorities||[]).length+'\nTasks: '+(DB.tasks||[]).length)})}
 
 // ===== DATA =====
@@ -299,7 +318,7 @@ const STATUSES=['Not Started','Work in Progress','Client Side Pending','Follow U
 const BILLING_TYPES=['Billable','Non-Billable','Client Request','AI'];
 let CU=null,DB={tasks:[],logs:[],notifications:[],reimburse:[],routine:[],upfront:[],attendance:[],partnerPriorities:[],dailyPicks:[],notes:[],reviews:[],messages:[],reimbRequests:[],routineRequests:[],upfrontReceipts:[],upfrontRequests:[]};
 function saveDB(){fbPut(DB).catch(function(){})}
-async function loadDB(){try{var r=await fbGet();if(r&&r.tasks){delete r._v;Object.assign(DB,r);['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});return true}return false}catch(e){return false}}
+async function loadDB(){try{var r=await fbGet();if(r&&r.tasks){delete r._v;['tasks','logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){if(r[k])DB[k]=r[k]});['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});return true}return false}catch(e){return false}}
 
 function seedDB(){
 DB.tasks=SEED_DATA.tasks||[];DB.logs=[];DB.reimburse=SEED_DATA.reimburse||[];
@@ -750,12 +769,12 @@ window.expRoutine=function(){dlCsv(DB.routine.length?DB.routine:DB.routineReques
       var fbJson=await fbData.json();
       if(fbJson&&fbJson.tasks&&fbJson.tasks.length>0){
         delete fbJson._v;
-        Object.assign(DB,fbJson);
+        ['tasks','logs','notifications','attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){if(fbJson[k])DB[k]=fbJson[k]});
         ['attendance','partnerPriorities','dailyPicks','notes','reviews','messages','reimbRequests','routineRequests','upfrontReceipts','upfrontRequests'].forEach(function(k){DB[k]=DB[k]||[]});
         if(fbTestEl){fbTestEl.innerHTML+=' | Loaded '+DB.tasks.length+' tasks from cloud'}
       }else{
         // First time - save seed to Firebase
-        var saveRes=await fetch(FB+'/cmca.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB)});
+        await fbPut(DB);var saveRes={ok:true};
         if(saveRes.ok){
           if(fbTestEl){fbTestEl.innerHTML+=' | Seeded '+DB.tasks.length+' tasks to cloud'}
         }else{
